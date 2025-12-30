@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+const defaultRootFolderName = "ggnetwork"
+
 func CASPathTransformFunc(key string) PathKey {
 	hash := sha1.Sum([]byte(key))
 	hashString := hex.EncodeToString(hash[:])
@@ -43,11 +45,17 @@ func (p PathKey) Filename() string {
 	return fmt.Sprintf("%s/%s", p.Pathname, p.Original)
 }
 
-var DefaultPathTransformFunc = func(key string) string {
-	return key
+var DefaultPathTransformFunc = func(key string) PathKey {
+	return PathKey{
+		Pathname: key,
+		Original: key,
+	}
 }
 
 type StoreOpts struct {
+	// Root is the folder name of the root, containing all the folders
+	// files of the system
+	Root              string
 	PathTransfromFunc PathTransfromFunc
 }
 
@@ -56,6 +64,13 @@ type Store struct {
 }
 
 func NewStore(opts StoreOpts) *Store {
+	if opts.PathTransfromFunc == nil {
+		opts.PathTransfromFunc = DefaultPathTransformFunc
+	}
+
+	if len(opts.Root) == 0 {
+		opts.Root = defaultRootFolderName
+	}
 	return &Store{
 		StoreOpts: opts,
 	}
@@ -65,13 +80,16 @@ func (s *Store) writeStream(key string, r io.Reader) error {
 	pathKey := s.PathTransfromFunc(key)
 	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
 	fmt.Println("pathKey:Original => ", pathKey.Original)
-	if err := os.MkdirAll(pathKey.Pathname, os.ModePerm); err != nil {
+
+	pathNameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Pathname)
+	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
 		return nil
 	}
 
 	pathAndFilename := pathKey.Filename()
+	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
 
-	f, err := os.Create(pathAndFilename)
+	f, err := os.Create(pathAndFilenameWithRoot)
 	if err != nil {
 		return err
 	}
@@ -99,7 +117,8 @@ func (s *Store) Read(key string) (io.Reader, error) {
 func (s *Store) readStream(key string) (io.ReadCloser, error) {
 	pathKey := s.PathTransfromFunc(key)
 	//f, err := os.Open("d9e06/924cb/e4f7c/5f592/69e62/67f97/1d027/74564/d9e06924cbe4f7c5f59269e6267f971d02774564")
-	f, err := os.Open(pathKey.Filename())
+	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
+	f, err := os.Open(pathAndFilenameWithRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +127,8 @@ func (s *Store) readStream(key string) (io.ReadCloser, error) {
 
 func (s *Store) Has(key string) bool {
 	pathKey := s.PathTransfromFunc(key)
-	_, err := os.Stat(pathKey.Filename())
+	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
+	_, err := os.Stat(pathAndFilenameWithRoot)
 	if err == fs.ErrNotExist {
 		return false
 	}
@@ -118,10 +138,11 @@ func (s *Store) Has(key string) bool {
 
 func (s *Store) Delete(key string) error {
 	pathKey := s.PathTransfromFunc(key)
+	pathAndFilenameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.Filename())
 	defer func() {
 		log.Printf("deleted [%s] from disk", pathKey.Original)
 	}()
-	seperatedFilePath := strings.Split(pathKey.Filename(), "/")
+	seperatedFilePath := strings.Split(pathAndFilenameWithRoot, "/")
 
 	return os.RemoveAll(seperatedFilePath[0])
 }

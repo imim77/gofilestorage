@@ -15,6 +15,32 @@ func TestPathTransformFunc(t *testing.T) {
 
 }
 
+func TestOnlyDelete(t *testing.T) {
+	opt := StoreOpts{
+		PathTransfromFunc: CASPathTransformFunc,
+	}
+	s := NewStore(opt)
+	key := "mombestpicture"
+	if err := s.Delete(key); err != nil {
+		t.Error(t)
+	}
+}
+
+func TestOnlyHas(t *testing.T) {
+
+	opt := StoreOpts{
+		PathTransfromFunc: CASPathTransformFunc,
+	}
+	s := NewStore(opt)
+
+	key := "mombestpicture"
+
+	if ok := s.Has(key); !ok {
+		t.Errorf("expected to have key %s", key)
+	}
+
+}
+
 func TestStoreDelete(t *testing.T) {
 	opt := StoreOpts{
 		PathTransfromFunc: CASPathTransformFunc,
@@ -27,9 +53,6 @@ func TestStoreDelete(t *testing.T) {
 	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
 		t.Error(err)
 	}
-
-	b := s.Has(key)
-	fmt.Println(b)
 
 	if err := s.Delete(key); err != nil {
 		t.Error(err)
