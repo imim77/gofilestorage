@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"time"
 
 	"github.com/imim77/gofilestorage/p2p"
 )
@@ -13,25 +13,27 @@ func TestFunc(p p2p.Peer) error {
 }
 
 func main() {
-	trOpts := p2p.TCPTransportOpts{
+	tcptransportOpts := p2p.TCPTransportOpts{
 		ListenAddr: ":3000",
 		ShakeHands: p2p.NOPHandShakefunc,
 		Decoder:    p2p.DefaultDecoder{},
-		OnPeer:     TestFunc,
 	}
-	tr := p2p.NewTCPTransport(trOpts)
+	tcpTransport := p2p.NewTCPTransport(tcptransportOpts)
+
+	fileserverOpts := FileServerOptions{
+
+		StorageRoot:       ":3000_network",
+		PathTransformFunc: CASPathTransformFunc,
+		Transport:         tcpTransport,
+	}
+	s := NewServer(fileserverOpts)
 
 	go func() {
-		for {
-			msg := <-tr.Consume()
-			fmt.Printf("%+v\n", msg)
-		}
+		time.Sleep(time.Second * 3)
+		s.Stop()
 	}()
-
-	if err := tr.ListenAndAccept(); err != nil {
+	if err := s.Start(); err != nil {
 		log.Fatal(err)
 	}
-
-	select {}
 
 }

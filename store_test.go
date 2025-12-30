@@ -7,6 +7,20 @@ import (
 	"testing"
 )
 
+func newStore() *Store {
+	opt := StoreOpts{
+		PathTransfromFunc: CASPathTransformFunc,
+	}
+	return NewStore(opt)
+
+}
+
+func teardown(t *testing.T, s *Store) {
+	if err := s.Clear(); err != nil {
+		t.Error(t)
+	}
+}
+
 func TestPathTransformFunc(t *testing.T) {
 	key := "mombestpicture"
 	pathname := CASPathTransformFunc(key)
@@ -24,21 +38,6 @@ func TestOnlyDelete(t *testing.T) {
 	if err := s.Delete(key); err != nil {
 		t.Error(t)
 	}
-}
-
-func TestOnlyHas(t *testing.T) {
-
-	opt := StoreOpts{
-		PathTransfromFunc: CASPathTransformFunc,
-	}
-	s := NewStore(opt)
-
-	key := "mombestpicture"
-
-	if ok := s.Has(key); !ok {
-		t.Errorf("expected to have key %s", key)
-	}
-
 }
 
 func TestStoreDelete(t *testing.T) {
@@ -60,25 +59,32 @@ func TestStoreDelete(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	opt := StoreOpts{
-		PathTransfromFunc: CASPathTransformFunc,
-	}
-	s := NewStore(opt)
+	s := newStore()
+	defer teardown(t, s)
 
-	key := "mombestpicture"
+	for i := 0; i < 50; i++ {
+		key := fmt.Sprintf("foo_%d", i)
+		data := []byte("some jpeg bytes")
+		if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+			t.Error(err)
+		}
 
-	data := []byte("some jpeg bytes")
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
+		r, err := s.Read(key)
+		if err != nil {
+			t.Error(err)
+		}
+		b, _ := io.ReadAll(r)
+		fmt.Println(string(b))
+		if string(b) != string(data) {
+			t.Errorf("want %s, have %s", data, b)
+		}
+		if err := s.Delete(key); err != nil {
+			t.Error(err)
+		}
+
+		if ok := s.Has(key); ok {
+			t.Errorf("expected to NOT have key %s", key)
+		}
 	}
 
-	r, err := s.Read(key)
-	if err != nil {
-		t.Error(err)
-	}
-	b, _ := io.ReadAll(r)
-	fmt.Println(string(b))
-	if string(b) != string(data) {
-		t.Errorf("want %s, have %s", data, b)
-	}
 }
