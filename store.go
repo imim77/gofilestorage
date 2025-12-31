@@ -76,34 +76,33 @@ func NewStore(opts StoreOpts) *Store {
 	}
 }
 
-func (s *Store) Write(key string, r io.Reader) error {
+func (s *Store) Write(key string, r io.Reader) (int64, error) {
 	return s.writeStream(key, r)
 }
 
-func (s *Store) writeStream(key string, r io.Reader) error {
+func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	pathKey := s.PathTransfromFunc(key)
 	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
 	fmt.Println("pathKey:Original => ", pathKey.Original)
 
 	pathNameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Pathname)
 	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
-		return nil
+		return 0, err
 	}
 
-	pathAndFilename := pathKey.Filename()
 	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
 
 	f, err := os.Create(pathAndFilenameWithRoot)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	n, err := io.Copy(f, r)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	log.Printf("written (%d) bytes to disk: %s", n, pathAndFilename)
-	return nil
+	//	log.Printf("written (%d) bytes to disk: %s", n, pathAndFilename)
+	return n, nil
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
