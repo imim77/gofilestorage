@@ -67,6 +67,7 @@ func (s *FileServer) stream(msg *Message) error {
 
 func (s *FileServer) broadcast(msg *Message) error {
 	buf := new(bytes.Buffer)
+
 	if err := gob.NewEncoder(buf).Encode(msg); err != nil {
 		return err
 	}
@@ -93,9 +94,11 @@ type MessageGetFile struct {
 }
 
 func (s *FileServer) Get(key string) (io.Reader, error) {
-	if s.store.Has(key) {
-		return s.store.Read(key)
+	b := s.store.Has(key)
+	if !b {
+		return nil, fmt.Errorf("some error")
 	}
+
 	fmt.Printf("don't have file (%s) locally, fetching from network...\n", key)
 
 	msg := Message{
@@ -106,6 +109,20 @@ func (s *FileServer) Get(key string) (io.Reader, error) {
 
 	if err := s.broadcast(&msg); err != nil {
 		return nil, err
+	}
+
+	time.Sleep(time.Second * 3)
+
+	for _, peer := range s.peers {
+		fmt.Println("recieving stream from peer: ", peer.RemoteAddr())
+
+		fileBuffer := new(bytes.Buffer)
+		n, err := io.CopyN(fileBuffer, peer, 10)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("recieved bytes over the network: ", n)
+		fmt.Println(fileBuffer.String())
 	}
 
 	select {}
@@ -179,13 +196,13 @@ func (s *FileServer) handleMessageStoreFile(from string, msg MessageStoreFile) e
 		return fmt.Errorf("peer: (%s) could not be found in the peer list", from)
 	}
 	n, err := s.store.Write(msg.Key, io.LimitReader(peer, msg.Size))
+
 	if err != nil {
 		return err
 	}
 	fmt.Printf("written %d bytes to disk\n", n)
 
 	peer.(*p2p.TCPPeer).Wg.Done()
-
 	return nil
 
 }
@@ -194,6 +211,8 @@ func (s *FileServer) handleMessageGetFile(from string, msg MessageGetFile) error
 	if !s.store.Has(msg.Key) {
 		return fmt.Errorf("need to serve file (%s) but it  does not exists on disk", msg.Key)
 	}
+	fmt.Printf("serving file (%s) over the network\n", msg.Key)
+
 	r, err := s.store.Read(msg.Key)
 	if err != nil {
 		return err
@@ -211,7 +230,6 @@ func (s *FileServer) handleMessageGetFile(from string, msg MessageGetFile) error
 
 	fmt.Printf("written %d bytes over the network to %s\n", n, from)
 
-	fmt.Println("need to get file from disk and send it over the wire")
 	return nil
 }
 
@@ -255,6 +273,7 @@ func (s *FileServer) Start() error {
 }
 
 func init() {
-	gob.Register(MessageStoreFile{})
 	gob.Register(MessageGetFile{})
+	gob.Register(MessageStoreFile{})
+
 }
