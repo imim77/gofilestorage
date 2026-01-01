@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"time"
 
@@ -28,6 +27,7 @@ func makeServer(listenAddr string, nodes ...string) *FileServer {
 		PathTransformFunc: CASPathTransformFunc,
 		Transport:         tcpTransport,
 		BootstrapNodes:    nodes,
+		EncKey:            newEncryptionKey(),
 	}
 	s := NewServer(fileserverOpts)
 	tcpTransport.OnPeer = s.OnPeer
@@ -45,25 +45,22 @@ func main() {
 	time.Sleep(time.Second * 1)
 	go s2.Start()
 	time.Sleep(time.Second * 1)
-	for i := 0; i < 5; i++ {
-		key := fmt.Sprintf("myprivatedata_%s", i)
-		data := bytes.NewReader([]byte("my big data file here"))
-		s2.Store(key, data)
-		time.Sleep(5 * time.Millisecond)
-	}
 
-	//r, err := s2.Get("myprivatedata")
+	key := "coolPicture.jpg"
+	data := bytes.NewReader([]byte("my big data file here!"))
+	s2.Store(key, data)
+	//time.Sleep(5 * time.Millisecond)
+
+	//r, err := s2.Get("coolPicture.jpg")
 	////r, err := s2.Get("aaaa")
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
 
-	//_, err = io.ReadAll(r)
+	//b, err := io.ReadAll(r)
 	//if err != nil {
 	//	log.Fatal(err)
 	//}
-	////fmt.Println(string(b))
-
-	select {}
+	//fmt.Println(string(b))
 
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
@@ -80,6 +79,31 @@ func (s *Store) Write(key string, r io.Reader) (int64, error) {
 	return s.writeStream(key, r)
 }
 
+func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, error) {
+	pathKey := s.PathTransfromFunc(key)
+	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
+	fmt.Println("pathKey:Original => ", pathKey.Original)
+
+	pathNameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Pathname)
+	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
+		return 0, err
+	}
+
+	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
+
+	f, err := os.Create(pathAndFilenameWithRoot)
+	if err != nil {
+		return 0, err
+	}
+	n, err := copyDecrypt(encKey, r, f)
+	if err != nil {
+		return 0, err
+	}
+
+	//	log.Printf("written (%d) bytes to disk: %s", n, pathAndFilename)
+	return int64(n), nil
+}
+
 func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	pathKey := s.PathTransfromFunc(key)
 	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
@@ -105,27 +129,25 @@ func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
 	return n, nil
 }
 
-func (s *Store) Read(key string) (io.Reader, error) {
-	f, err := s.readStream(key)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, f)
-	return buf, err
+func (s *Store) Read(key string) (int64, io.Reader, error) {
+	return s.readStream(key)
 
 }
 
-func (s *Store) readStream(key string) (io.ReadCloser, error) {
+func (s *Store) readStream(key string) (int64, io.ReadCloser, error) {
 	pathKey := s.PathTransfromFunc(key)
 	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
-	f, err := os.Open(pathAndFilenameWithRoot)
+	file, err := os.Open(pathAndFilenameWithRoot)
 	if err != nil {
-		return nil, err
+		return 0, nil, err
 	}
 
-	return f, nil
+	fi, err := file.Stat()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return fi.Size(), file, nil
 }
 
 func (s *Store) Has(key string) bool {
