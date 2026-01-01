@@ -80,18 +80,7 @@ func (s *Store) Write(key string, r io.Reader) (int64, error) {
 }
 
 func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, error) {
-	pathKey := s.PathTransfromFunc(key)
-	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
-	fmt.Println("pathKey:Original => ", pathKey.Original)
-
-	pathNameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Pathname)
-	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
-		return 0, err
-	}
-
-	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
-
-	f, err := os.Create(pathAndFilenameWithRoot)
+	f, err := s.openFileForWriting(key)
 	if err != nil {
 		return 0, err
 	}
@@ -104,29 +93,28 @@ func (s *Store) WriteDecrypt(encKey []byte, key string, r io.Reader) (int64, err
 	return int64(n), nil
 }
 
-func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
+func (s *Store) openFileForWriting(key string) (*os.File, error) {
 	pathKey := s.PathTransfromFunc(key)
 	fmt.Println("pathKey:pathName => ", pathKey.Pathname)
 	fmt.Println("pathKey:Original => ", pathKey.Original)
 
 	pathNameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Pathname)
 	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	pathAndFilenameWithRoot := fmt.Sprintf("%s", s.Root+"/"+pathKey.Filename())
 
-	f, err := os.Create(pathAndFilenameWithRoot)
-	if err != nil {
-		return 0, err
-	}
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return 0, err
-	}
+	return os.Create(pathAndFilenameWithRoot)
+}
 
-	//	log.Printf("written (%d) bytes to disk: %s", n, pathAndFilename)
-	return n, nil
+func (s *Store) writeStream(key string, r io.Reader) (int64, error) {
+	f, err := s.openFileForWriting(key)
+	if err != nil {
+		return 0, err
+	}
+	return io.Copy(f, r)
+
 }
 
 func (s *Store) Read(key string) (int64, io.Reader, error) {
